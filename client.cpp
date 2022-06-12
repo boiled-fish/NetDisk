@@ -22,8 +22,8 @@ using namespace std;
 
 struct data_package {
     int op;
-    string username;
-    string content;
+    char username[BUF_LEN];
+    char content[BUF_LEN];
 };
 
 bool client_request(int opt);
@@ -44,14 +44,6 @@ int main() {
         cout << "DLL initialization failed" << WSAGetLastError() <<  endl;
         return -1;
     }
-
-	/*设置非阻塞模式*/
-    ret = ioctlsocket(sock, FIONBIO, (unsigned long *)&ul);
-	if(ret == SOCKET_ERROR) {
-		cout << "非阻塞设置失败" << endl;
-		clean(sock);
-		return -1; 
-	} 
     
     cout << "server ip: " << server_ip << endl;
     //cin >> server_ip;
@@ -72,31 +64,24 @@ int main() {
 	/*****************************************************************************/
 	/*注册、登录*/
 	cout << "*****************************************************************************" << endl;
-	cout << "注册(6)，登录(7): ";
+	cout << "PAN_DOWNLOAD  0" << endl;
+	cout << "PAN_MOVE      1" << endl;
+	cout << "PAN_COPY      2" << endl;
+	cout << "PAN_PASTE     3" << endl;
+	cout << "PAN_DELETE    4" << endl;
+	cout << "PAN_SHOW      5" << endl;
+	cout << "PAN_REGISTER  6" << endl;
+	cout << "PAN_LOGIN     7" << endl;
+	cout << "*****************************************************************************" << endl;
+	
 	while (1) {
+		cout << "op: ";
 		cin >> opt;
-		// register
-		if (opt == PAN_REGISTER){
-			cout << "Register:" << endl;
-   			if (!client_request(PAN_REGISTER)) {
-				cout << "register failed" << endl;
-			}
-			else {
-				cout << "register succeed" << endl;
-			}
-   		}
-   		//login
-   		else if (opt == PAN_LOGIN) {
-   			cout << "Login:" << endl;
-   			if (!client_request(PAN_LOGIN)) {
-   				cout << "login failed" << endl;	
-			}
-			else {
-				cout << "login succeed" << endl;
-			}
-   		}
-   		else {
-   			break;	
+		if (opt >= PAN_DOWNLOAD && opt <= PAN_LOGIN && !client_request(opt)) {
+			cout << "op " << opt << " failed" << endl;
+		}
+		else {
+			cout << "succeed" << endl;
 		}
 	}
 
@@ -107,30 +92,167 @@ int main() {
 bool client_request(int opt) {
 	data_package pkg;
 	pkg.op = opt;
-    fill_pkg(&pkg);
+    if (!fill_pkg(&pkg)){
+    	return false;
+	}
     int ret = send(sock, (char*)&pkg, sizeof(pkg), 0);
     if (ret < 0) {
     	cout << "send failed, error: " << WSAGetLastError() <<  endl;
         return false;
 	}
-	/*超过10s无回应，判断为请求失败*/
+	/*阻塞等待server返回值，超时server断开连接，判断为请求失败*/
 	char* recv_buf[BUF_LEN] = { 0 };
 	int ret = recv(sock, recv_buf, 1, 0);
-	if (ret < 0) {
+	if (ret <= 0) {
 		cout << "recv failed, error: " << WSAGetLastError() <<  endl;
         return false;
 	}
+	/*临时的返回数据包解析*/
 	if (recv_buf[0] != PAN_SUCCESS) {
 		return false;
 	}
 	return true;
 }
 
-void fill_pkg(data_package* pkg) {
-    cout << "  Username: ";
-    cin >> pkg->username;      
-    cout << "  Password: ";
-    cin >> pkg->content;
+bool fill_pkg(data_package* pkg) {
+	switch(pkg.op) {
+		case PAN_REGISTER:
+        case PAN_LOGIN:
+        	char username[BUF_LEN] = { 0 };
+			cout << " Username: ";
+			cin >> username; 
+			if (strlen(username) < BUF_LEN) {
+				memcpy(pkg.username, username);
+			}
+			else {
+				return false;
+			}
+    		char password[BUF_LEN] = { 0 };
+			cout << " Password: ";
+			cin >> password; 
+			if (strlen(password) < BUF_LEN) {
+				memcpy(pkg.content, password);
+			}
+			else {
+				return false;
+			}
+        	break;
+        case PAN_MOVE:
+        	char username[BUF_LEN] = { 0 };
+			cout << " Username: ";
+			cin >> username; 
+			if (strlen(username) < BUF_LEN) {
+				memcpy(pkg.username, username);
+			}
+			else {
+				return false;
+			}
+			memset(pkg.content, 0, BUF_LEN);
+			char start_path[BUF_LEN] = { 0 };
+			cout << " Start path: ";
+			cin >> start_path; 
+			if (strlen(start_path) < BUF_LEN) {
+				memcpy(pkg.content, start_path);
+			}
+			
+			pkg.content[strlen(start_path)] = '-';
+			
+			char destinaion_path[BUF_LEN] = { 0 };
+			cout << " Destinaion path: ";
+			cin >> destination_path;
+			if (strlen(destination_path) + strlen(start_path) + 1 <= BUF_LEN) {
+				memcpy(&pkg.content[strlen(start_path) + 1], destination_path);
+			}
+            break;
+        case PAN_COPY:
+        	char username[BUF_LEN] = { 0 };
+			cout << " Username: ";
+			cin >> username; 
+			if (strlen(username) < BUF_LEN) {
+				memcpy(pkg.username, username);
+			}
+			memset(pkg.content, 0, BUF_LEN);
+			char copy_path[BUF_LEN] = { 0 };
+			cout << " Copy path: ";
+			cin >> copy_path; 
+			if (strlen(copy_path) < BUF_LEN) {
+				memcpy(pkg.content, copy_path);
+			}
+            break;
+        case PAN_PASTE:
+        	char username[BUF_LEN] = { 0 };
+			cout << " Username: ";
+			cin >> username; 
+			if (strlen(username) < BUF_LEN) {
+				memcpy(pkg.username, username);
+			}
+			memset(pkg.content, 0, BUF_LEN);
+			char paste_path[BUF_LEN] = { 0 };
+			cout << " Paste path: ";
+			cin >> start_path; 
+			if (strlen(paste_path) < BUF_LEN) {
+				memcpy(pkg.content, paste_path);
+			}
+        	break;
+        case PAN_DELETE:
+        	char username[BUF_LEN] = { 0 };
+			cout << " Username: ";
+			cin >> username; 
+			if (strlen(username) < BUF_LEN) {
+				memcpy(pkg.username, username);
+			}
+			
+			memset(pkg.content, 0, BUF_LEN);
+			char file_path[BUF_LEN] = { 0 };
+			cout << " Delete file path: ";
+			cin >> file_path; 
+			if (strlen(file_path) < BUF_LEN) {
+				memcpy(pkg.content, file_path);
+			}
+            break;
+        case PAN_SHOW:
+        	char username[BUF_LEN] = { 0 };
+			cout << " Username: ";
+			cin >> username; 
+			if (strlen(username) < BUF_LEN) {
+				memcpy(pkg.username, username);
+			}
+			
+			memset(pkg.content, 0, BUF_LEN);
+			char path[BUF_LEN] = { 0 };
+			cout << " Show path: ";
+			cin >> path; 
+			if (strlen(path) < BUF_LEN) {
+				memcpy(pkg.content, path);
+			}
+        	break;
+        case PAN_DOWNLOAD:
+        	char username[BUF_LEN] = { 0 };
+			cout << " Username: ";
+			cin >> username; 
+			if (strlen(username) < BUF_LEN) {
+				memcpy(pkg.username, username);
+			}
+			
+			memset(pkg.content, 0, BUF_LEN);
+			char file_path[BUF_LEN] = { 0 };
+			cout << " file path: ";
+			cin >> file_path; 
+			if (strlen(file_path) < BUF_LEN) {
+				memcpy(pkg.content, file_path);
+			}
+			
+			pkg.content[strlen(file_path)] = '-';
+			
+			char destinaion_path[BUF_LEN] = { 0 };
+			cout << " Destinaion path: ";
+			cin >> destination_path;
+			if (strlen(destination_path) + strlen(file_path) + 1 <= BUF_LEN) {
+				memcpy(&pkg.content[strlen(file_path) + 1], destination_path);
+			}
+            break;
+	}
+	return true;
 }
 
 void clean(SOCKET sock) {
