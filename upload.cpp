@@ -57,7 +57,12 @@ void pan_path(data_package* pkg, char* path) {
 		}
 	}
 	strcpy(path, pkg->content);
-	strcpy(path + len2, pkg->username + pivot);
+	if (pivot != 0) {
+		strcpy(path + len2, pkg->username + pivot + 1);
+	}
+	else {
+		strcpy(path + len2, pkg->username);	
+	}
 }
  
 bool upload_file(data_package* pkg, SOCKET sock) {
@@ -67,13 +72,11 @@ bool upload_file(data_package* pkg, SOCKET sock) {
 	/*content: s端文件路径-文件大小*/
 	data_package check_pkg;
 	check_pkg.op = PAN_UPLOAD_FILE_CHECK;
-	if (!get_md5(pkg->username, check_pkg.username)) {
-		return false;
-	}
+	/*计算s端路径*/
 	pan_path(pkg, check_pkg.content);
 	int content_len = strlen(check_pkg.content);
 	check_pkg.content[content_len] = '-';
-	/*计算文件大小*/ 
+	/*计算文件大小*/
 	char file_size[BUF_LEN] = { 0 };
 	int size = 0;
 	FILE* file = fopen(pkg->username, "r");
@@ -82,31 +85,53 @@ bool upload_file(data_package* pkg, SOCKET sock) {
 		size = filelength(fileno(file));
 		fclose(file);
 	}
-	int2string(size, file_size);
+	//int2string(size, file_size);
+	sprintf(file_size, "%d", size);
 	strcpy(check_pkg.content + content_len + 1, file_size);
-	
+	cout << "file_size: " << file_size << endl;
+	/*计算md5*/
+	if (size != 0) {
+		if (!get_md5(pkg->username, check_pkg.username)) {
+			cout << "cal md5 failed" << endl;
+			return false;
+		}
+	}
+	else {
+		//char zero[BUF_LEN] = { 0 };
+		sprintf(check_pkg.username, "0");
+	}
 	/*发送check包*/ 
+	cout << "check pkg md5: "<< check_pkg.username << endl;
+	cout << "check pkg content: "<< check_pkg.content << endl;
 	int ret = send(sock, (char*)&check_pkg, sizeof(check_pkg), 0);
 	if (ret < 0) {
 		cout << "send check pkg failed, error: " << WSAGetLastError() << endl;
+		return false; 
 	}
-	/*阻塞等待*/ 
+	/*阻塞等待*/
 	data_package pkg_recv;
 	ret = recv(sock, (char*)&pkg_recv, sizeof(data_package), 0);
 	if (ret <= 0) {
 		cout << "recv failed, error: " << WSAGetLastError() << endl;
+		return false;
 	}
 	if (pkg_recv.op == PAN_SUCCESS) {
-		cout << "upload success" << endl;
-		cout << pkg_recv.content << endl;
-	}
-	else if (pkg_recv.op == PAN_UPLOAD_FILE_CHECK) {
+	//else if (pkg_recv.op == PAN_UPLOAD_FILE_CHECK) 
 		while (1) {
+			if (pkg_recv.op == PAN_FAILURE) {
+				cout << "upload file failed(PAN_FAILURE)" << endl;
+				return false;
+			}
+			cout << "pkg_recv content: "<< pkg_recv.content << endl;
+			if (strcmp(pkg_recv.content, "-1") == 0) {
+				cout << "upload file succeed(-1)" << endl;
+				return true;
+			}
 			int file_no = string2int(pkg_recv.content);
 			int len = file_no * BUF_LEN;
 			/*op：PAN_UPLOAD_FILE_CONTENT*/
 			/*username：序号-md5*/
-			/*content: 文件内容*/ 
+			/*content: 文件内容*/
 			data_package pkg_snt;
 			pkg_snt.op = PAN_UPLOAD_FILE_CONTENT;
 			strcpy(pkg_snt.username, pkg_recv.content); //序号 
@@ -114,20 +139,26 @@ bool upload_file(data_package* pkg, SOCKET sock) {
 			strcpy(pkg_snt.username + strlen(pkg_recv.content) + 1, check_pkg.username); //md5
 			/*读文件*/
 			ifstream infile;
-			infile.open(pkg->username, ios::in);
+			infile.open(pkg->username, ifstream::binary);
 			if (!infile.is_open()) {
+				cout << "read file failed" << endl;
 				return false;
 			}
 			infile.seekg(len);
+			/*
 			int count = 0;
 			char c;
 			while ((c = infile.get()) != EOF && count < BUF_LEN) {
 				pkg_snt.content[count++] = c;
 			}
-			/*发送check包*/ 
+			*/
+			infile.read(pkg_snt.content, BUF_LEN);
+			/*发送check包*/
+			
 			int ret = send(sock, (char*)&pkg_snt, sizeof(pkg_snt), 0);
 			if (ret < 0) {
 				cout << "send data pkg failed, error: " << WSAGetLastError() << endl;
+				return false;
 			}
 			/*阻塞等待*/
 			pkg_recv.op = -1;
@@ -136,18 +167,26 @@ bool upload_file(data_package* pkg, SOCKET sock) {
 			ret = recv(sock, (char*)&pkg_recv, sizeof(data_package), 0);
 			if (ret <= 0) {
 				cout << "recv failed, error: " << WSAGetLastError() << endl;
+				return false;
 			}
+			/*
 			if (pkg_recv.op == PAN_SUCCESS) {
 				cout << "upload success" << endl;
 				cout << pkg_recv.content << endl;
 				break;
 			}
+			*/
 		}
+	}
+	else {
+		cout << "upload failed" << endl;
+		cout << pkg_recv.content << endl;
+		return false;
 	}
 	return true;
 }
 
-void dfs_dir(data_package* pkg, SOCKET sock) {
+bool dfs_dir(data_package* pkg, SOCKET sock) {
 	//文件句柄
 	long hFile = 0;
 	//文件信息
@@ -161,46 +200,62 @@ void dfs_dir(data_package* pkg, SOCKET sock) {
 			if ((fileinfo.attrib &  _A_SUBDIR)) {
 				if (strcmp(fileinfo.name, ".") != 0 && strcmp(fileinfo.name, "..") != 0) {
 					string dir_path = p.assign(path).append("\\").append(fileinfo.name);
-					strcpy(pkg->username, dir_path.c_str());
-					pan_path(pkg, pkg->content);
+					cout << "local path: " << dir_path << endl;
+					data_package temp_pkg;
+					temp_pkg.op = pkg->op;
+					memcpy(temp_pkg.username, pkg->username, BUF_LEN);
+					memcpy(temp_pkg.content, pkg->content, BUF_LEN);
+					
+					strcpy(temp_pkg.username, dir_path.c_str());
+					temp_pkg.content[strlen(temp_pkg.content) + 1] = temp_pkg.content[strlen(temp_pkg.content)];
+					temp_pkg.content[strlen(temp_pkg.content)] = '/';
+					pan_path(&temp_pkg, temp_pkg.content);
 					
 					/*发送mkdir包*/
 					data_package pkg_dir;
 					pkg_dir.op = PAN_UPLOAD_DIR;
-					strcpy(pkg_dir.content, pkg->content);
+					strcpy(pkg_dir.content, temp_pkg.content);
 					int ret = send(sock, (char*)&pkg_dir, sizeof(pkg_dir), 0);
 					if (ret < 0) {
 						cout << "send mkdir pkg failed, error: " << WSAGetLastError() << endl;
-						return;
+						return false;
 					}
 					/*阻塞等待*/ 
 					data_package pkg_recv;
 					ret = recv(sock, (char*)&pkg_recv, sizeof(data_package), 0);
 					if (ret <= 0) {
-						cout << "mkdir "<< dir_path << " failed, error: " << WSAGetLastError() << endl;
-						return;
+						cout << "mkdir "<< temp_pkg.content << " failed, error: " << WSAGetLastError() << endl;
+						return false;
 					}
 					if (pkg_recv.op == PAN_SUCCESS) {
-						cout << "mkdir " << dir_path << " success" << endl;
+						cout << "mkdir " << temp_pkg.content << " success" << endl;
 						cout << pkg_recv.content << endl;
 					}
 					else {
-						return;
-					}	
-					dfs_dir(pkg, sock);
+						return false;
+					}
+					dfs_dir(&temp_pkg, sock);
 				}
 			}
 			else {
 				string file_path = p.assign(path).append("\\").append(fileinfo.name);
+				cout << file_path << endl;
 				data_package file_pkg;
 				file_pkg.op = PAN_UPLOAD;
 				strcpy(file_pkg.username, file_path.c_str());
+				cout << "local file path: "<< file_pkg.username << endl;
 				strcpy(file_pkg.content, pkg->content);
+				
+				file_pkg.content[strlen(file_pkg.content) + 1] = file_pkg.content[strlen(file_pkg.content)];
+				file_pkg.content[strlen(file_pkg.content)] = '/';
+				//pan_path(&file_pkg, file_pkg.content);
+				cout << "server file path: "<< file_pkg.content << endl;
 				upload_file(&file_pkg, sock);
 			}
 		} while (_findnext(hFile, &fileinfo) == 0);
 		_findclose(hFile);
 	}
+	return true;
 }
 /*upload文件夹*/
 /*发送s端路径*/
@@ -212,16 +267,18 @@ bool upload_dir(data_package* pkg, SOCKET sock) {
 	pkg_dir.op = PAN_UPLOAD_DIR;
 	pan_path(pkg, pkg_dir.content);
 	
-	/*发送mkdir包*/ 
+	/*发送mkdir包*/
 	int ret = send(sock, (char*)&pkg_dir, sizeof(pkg_dir), 0);
 	if (ret < 0) {
 		cout << "send mkdir pkg failed, error: " << WSAGetLastError() << endl;
+		return false;
 	}
 	/*阻塞等待*/ 
 	data_package pkg_recv;
 	ret = recv(sock, (char*)&pkg_recv, sizeof(data_package), 0);
 	if (ret <= 0) {
 		cout << "mkdir failed, error: " << WSAGetLastError() << endl;
+		return false;
 	}
 	if (pkg_recv.op == PAN_SUCCESS) {
 		cout << "mkdir success" << endl;
@@ -230,6 +287,7 @@ bool upload_dir(data_package* pkg, SOCKET sock) {
 	else {
 		return false;
 	}
+	pan_path(pkg, pkg->content);
 	dfs_dir(pkg, sock);
 	return true;
 }
@@ -254,9 +312,11 @@ int file_type(char* path) {
 bool upload(data_package* pkg, SOCKET sock) {
 	switch (file_type(pkg->username)) {
 		case PAN_DIR: {
+			cout << "into upload dir" << endl;
 			return upload_dir(pkg, sock);
 		}
 		case PAN_FILE: {
+			cout << "into upload file" << endl;
 			return upload_file(pkg, sock);
 		}
 		default: {

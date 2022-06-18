@@ -1,1 +1,1 @@
-g++ client.cpp upload.cpp md5.cpp -o client -lwsock32
+g++ client.cpp upload.cpp md5.cpp download.cpp check_name.cpp -o client -lwsock32

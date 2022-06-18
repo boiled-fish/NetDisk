@@ -60,7 +60,7 @@ int main() {
 	while (1) {
 		cout << "op: ";
 		cin >> opt;
-		if (opt >= PAN_DOWNLOAD && opt <= PAN_LOGIN) {
+		if ((opt >= PAN_DOWNLOAD && opt <= PAN_LOGIN) || (opt == PAN_UPLOAD) || (opt == PAN_DOWNLOAD)) {
 			client_request(opt, sock);
 		}
 		else {
@@ -135,163 +135,193 @@ bool fill_pkg(data_package* pkg, SOCKET sock) {
 	char content1[BUF_LEN] = { 0 };
 	char content2[BUF_LEN] = { 0 };
 	switch (pkg->op) {
-	case PAN_REGISTER:
-	case PAN_LOGIN: {
-		cout << " Username: ";
-		cin >> username;
-		if (strlen(username) < BUF_LEN) {
-			strcpy(pkg->username, username);
-		}
-		else {
-			return false;
-		}
-
-		cout << " Password: ";
-		cin >> content1;
-		if (strlen(content1) < BUF_LEN) {
-			strcpy(pkg->content, content1);
-		}
-		else {
-			return false;
-		}
-		break;
-	}
-	case PAN_MOVE: {
-		cout << " Username: ";
-		cin >> username;
-		if (strlen(username) < BUF_LEN) {
-			strcpy(pkg->username, username);
-		}
-		else {
-			return false;
-		}
-
-		memset(pkg->content, 0, BUF_LEN);
-		cout << " Start path: ";
-		cin >> content1;
-		if (strlen(content1) < BUF_LEN) {
-			strcpy(pkg->content, content1);
-		}
-		else {
-			return false;
-		}
-
-		pkg->content[strlen(content1)] = '-';
-
-		cout << " Destinaion path: ";
-		cin >> content2;
-		if (strlen(content1) + strlen(content2) + 1 <= BUF_LEN) {
-			strcpy(&pkg->content[strlen(content1) + 1], content2);
-		}
-		else {
-			return false;
-		}
-		break;
-	}
-	case PAN_COPY: {
-		cout << " Username: ";
-		cin >> username;
-		if (strlen(username) < BUF_LEN) {
-			strcpy(pkg->username, username);
-		}
-		else {
-			return false;
-		}
-
-		memset(pkg->content, 0, BUF_LEN);
-		cout << " Copy path: ";
-		cin >> content1;
-		if (strlen(content1) < BUF_LEN) {
-			strcpy(pkg->content, content1);
-		}
-		else {
-			return false;
-		}
-		break;
-	}
-	case PAN_PASTE: {
-		cout << " Username: ";
-		cin >> username;
-		if (strlen(username) < BUF_LEN) {
-			strcpy(pkg->username, username);
-		}
-		else {
-			return false;
-		}
-		memset(pkg->content, 0, BUF_LEN);
-		cout << " Paste path: ";
-		cin >> content1;
-		if (strlen(content1) < BUF_LEN) {
-			strcpy(pkg->content, content1);
-		}
-		else {
-			return false;
-		}
-		break;
-	}
-	case PAN_DELETE: {
-		cout << " Username: ";
-		cin >> username;
-		if (strlen(username) < BUF_LEN) {
-			strcpy(pkg->username, username);
-		}
-		else {
-			return false;
-		}
-		memset(pkg->content, 0, BUF_LEN);
-		cout << " Delete file path: ";
-		cin >> content1;
-		if (strlen(content1) < BUF_LEN) {
-			strcpy(pkg->content, content1);
-		}
-		break;
-	}
-	case PAN_SHOW: {
-		cout << " Username: ";
-		cin >> username;
-		if (strlen(username) < BUF_LEN) {
-			strcpy(pkg->username, username);
-		}
-		else {
-			return false;
-		}
-
-		memset(pkg->content, 0, BUF_LEN);
-		cout << " Show path: ";
-		cin >> content1;
-		if (strlen(content1) < BUF_LEN) {
-			strcpy(pkg->content, content1);
-		}
-		else {
-			return false;
-		}
-		break;
-	}
-	case PAN_DOWNLOAD: {
-		break;
-	}
-	case PAN_UPLOAD: {
-		cout << " Local Path: ";
-		cin >> content1;
-		if (strlen(content1) < BUF_LEN) {
-			strcpy(pkg->username, content1);
-		}
-		else {
-			return false;
-		}
-		cout << " Pan Path: ";
-		cin >> content2;
-		if (strlen(content2) < BUF_LEN) {
-			strcpy(pkg->content, content2);
-			if (!upload(pkg, sock)) {
+		case PAN_REGISTER:
+		case PAN_LOGIN: {
+			cout << " Username: ";
+			cin >> username;
+			if (strlen(username) < BUF_LEN) {
+				strcpy(pkg->username, username);
+			}
+			else {
 				return false;
 			}
+
+			cout << " Password: ";
+			cin >> content1;
+			if (strlen(content1) < BUF_LEN) {
+				strcpy(pkg->content, content1);
+			}
+			else {
+				return false;
+			}
+			break;
 		}
-		else {
-			return false;
+		case PAN_MOVE: {
+			cout << " Username: ";
+			cin >> username;
+			if (strlen(username) < BUF_LEN) {
+				strcpy(pkg->username, username);
+			}
+			else {
+				return false;
+			}
+
+			memset(pkg->content, 0, BUF_LEN);
+			cout << " Start path: ";
+			cin >> content1;
+			if (strlen(content1) < BUF_LEN) {
+				strcpy(pkg->content, content1);
+			}
+			else {
+				return false;
+			}
+
+			pkg->content[strlen(content1)] = '-';
+
+			cout << " Destinaion path: ";
+			cin >> content2;
+			if (strlen(content1) + strlen(content2) + 1 <= BUF_LEN) {
+				strcpy(&pkg->content[strlen(content1) + 1], content2);
+			}
+			else {
+				return false;
+			}
+			break;
 		}
-		break;
-	}
+		case PAN_COPY: {
+			cout << " Username: ";
+			cin >> username;
+			if (strlen(username) < BUF_LEN) {
+				strcpy(pkg->username, username);
+			}
+			else {
+				return false;
+			}
+
+			memset(pkg->content, 0, BUF_LEN);
+			cout << " Copy path: ";
+			cin >> content1;
+			if (strlen(content1) < BUF_LEN) {
+				strcpy(pkg->content, content1);
+			}
+			else {
+				return false;
+			}
+			break;
+		}
+		case PAN_PASTE: {
+			cout << " Username: ";
+			cin >> username;
+			if (strlen(username) < BUF_LEN) {
+				strcpy(pkg->username, username);
+			}
+			else {
+				return false;
+			}
+			memset(pkg->content, 0, BUF_LEN);
+			cout << " Paste path: ";
+			cin >> content1;
+			if (strlen(content1) < BUF_LEN) {
+				strcpy(pkg->content, content1);
+			}
+			else {
+				return false;
+			}
+			break;
+		}
+		case PAN_DELETE: {
+			cout << " Username: ";
+			cin >> username;
+			if (strlen(username) < BUF_LEN) {
+				strcpy(pkg->username, username);
+			}
+			else {
+				return false;
+			}
+			memset(pkg->content, 0, BUF_LEN);
+			cout << " Delete file path: ";
+			cin >> content1;
+			if (strlen(content1) < BUF_LEN) {
+				strcpy(pkg->content, content1);
+			}
+			break;
+		}
+		case PAN_SHOW: {
+			cout << " Username: ";
+			cin >> username;
+			if (strlen(username) < BUF_LEN) {
+				strcpy(pkg->username, username);
+			}
+			else {
+				return false;
+			}
+
+			memset(pkg->content, 0, BUF_LEN);
+			cout << " Show path: ";
+			cin >> content1;
+			if (strlen(content1) < BUF_LEN) {
+				strcpy(pkg->content, content1);
+			}
+			else {
+				return false;
+			}
+			break;
+		}
+		case PAN_DOWNLOAD: {
+			/*
+			cout << "****************" << endl;
+			cout << "PAN_DIR       14" << endl;
+			cout << "PAN_FILE      15"
+			cout << "****************" << endl;
+			int type = 0;
+			cout << " Download type: ";
+			cin >> type;
+			*/
+			cout << " Local Download Path(directory): ";
+			cin >> content1;
+			if (strlen(content1) < BUF_LEN) {
+				strcpy(pkg->username, content1);
+			}
+			else {
+				return false;
+			}
+			cout << " From Pan Path: ";
+			cin >> content2;
+			if (strlen(content2) < BUF_LEN) {
+				strcpy(pkg->content, content2);
+				cout << "into download" << endl;
+				if (!download(pkg, sock)) {
+					return false;
+				}
+			}
+			else {
+				return false;
+			}
+			break;
+		}
+		case PAN_UPLOAD: {
+			cout << " Local Path: ";
+			cin >> content1;
+			if (strlen(content1) < BUF_LEN) {
+				strcpy(pkg->username, content1);
+			}
+			else {
+				return false;
+			}
+			cout << " Pan Path: ";
+			cin >> content2;
+			if (strlen(content2) < BUF_LEN) {
+				cout << "into upload" << endl;
+				strcpy(pkg->content, content2);
+				if (!upload(pkg, sock)) {
+					return false;
+				}
+			}
+			else {
+				return false;
+			}
+			break;
+		}
 	}
 	return true;
 }
